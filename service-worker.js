@@ -1,11 +1,12 @@
 const APP_PREFIX = 'trak-budget';     
 const VERSION = 'version_01';
 const CACHE_NAME = APP_PREFIX + VERSION;
+const DATA_CACHE_NAME = 'budget-tracker-data-cache'
 
 const FILES_TO_CACHE = [
-    "./index.html",
-    "./assets/css/style.css",
-    "./assets/css/bootstrap.css",
+    "./public/index.html",
+    "./public/css/style.css",
+    "./public/icons",
     "./dist/index.bundle.js",
 ];
 
@@ -38,17 +39,37 @@ self.addEventListener('activate', function(e) {
     );
 });
 
-self.addEventListener('fetch', function (e) {
-    console.log('fetch request : ' + e.request.url)
-    e.respondWith(
-      caches.match(e.request).then(function (request) {
-        if (request) {
-          console.log('responding with cache : ' + e.request.url)
-          return request
-        } else {
-          console.log('file is not cached, fetching : ' + e.request.url)
-          return fetch(e.request)
-        }  
+self.addEventListener('fetch', function(evt) {
+  if (evt.request.url.includes('/api/')) {
+      evt.respondWith(
+          caches  
+              .open(DATA_CACHE_NAME)
+              .then(cache => {
+                  return fetch(evt.request)
+                      .then(response => {
+                          if (response.status === 200) {
+                              cache.put(evt.request.url, response.clone());
+                          }
+                          return response;
+                      })
+                      .catch(err => {
+                          return cache.match(evt.request);
+                      });
+              })
+              .catch(err => console.log(err))
+      );
+      return;
+  }
+
+  evt.respondWith(
+      fetch(evt.request).catch(function() {
+          return caches.match(evt.request).then(function(response) {
+              if (response) {
+                  return response;
+              } else if (evt.request.headers.get('accept').includes('text/html')) {
+                  return caches.match('/');
+              }
+          });
       })
-    )
+  );
 });
